@@ -107,8 +107,10 @@ export default function ReportPetForm() {
       return false;
     }
 
-    if (!isCorrectNetwork) {
-      toast.error("Please switch to Base network");
+    const currentNetworkCorrect =
+      chainId === base.id || chainId === baseSepolia.id;
+    if (!currentNetworkCorrect) {
+      toast.error(`Please switch to ${base.name} or ${baseSepolia.name}`);
       return false;
     }
 
@@ -154,41 +156,34 @@ export default function ReportPetForm() {
   };
 
   const approveUSDC = async (amount: string) => {
-    const amountInWei = parseEther(amount);
     try {
-      if (approvalToastId) {
-        toast.dismiss(approvalToastId);
-      }
+      const usdcAmount = BigInt(Math.floor(parseFloat(amount) * 1e6));
 
-      const toastId = toast.loading("Approving USDC spending...");
-      setApprovalToastId(toastId);
+      toast.loading("Approving USDC spending...");
 
       writeApproval({
         address: USDC_ADDRESS,
         abi: erc20Abi,
         functionName: "approve",
-        args: [CONTRACT_ADDRESS, amountInWei],
+        args: [CONTRACT_ADDRESS, usdcAmount],
       });
     } catch (error) {
       console.error("Approval failed:", error);
       toast.error("Failed to approve USDC spending");
-      setApprovalToastId(null);
     }
   };
 
   const reportPet = async () => {
     try {
-      if (reportToastId) {
-        toast.dismiss(reportToastId);
-      }
+      toast.loading("Reporting lost pet...");
 
-      const toastId = toast.loading("Reporting lost pet...");
-      setReportToastId(toastId);
+      const usdcAmount = formData.useUSDC
+        ? BigInt(Math.floor(parseFloat(formData.usdcBounty) * 1e6))
+        : BigInt(0);
 
-      const bountyAmount = formData.useUSDC
-        ? formData.usdcBounty
-        : formData.ethBounty;
-      const bountyInWei = parseEther(bountyAmount);
+      const ethAmount = formData.useUSDC
+        ? BigInt(0)
+        : parseEther(formData.ethBounty);
 
       const args = [
         formData.name,
@@ -203,7 +198,7 @@ export default function ReportPetForm() {
         formData.contactName,
         formData.contactPhone,
         formData.contactEmail,
-        formData.useUSDC ? bountyInWei.toString() : "0",
+        usdcAmount.toString(),
       ];
 
       writeReport({
@@ -211,12 +206,11 @@ export default function ReportPetForm() {
         abi: PetTraceABI.abi,
         functionName: "postLostPet",
         args: args,
-        value: formData.useUSDC ? BigInt(0) : bountyInWei,
+        value: ethAmount,
       });
     } catch (error) {
       console.error("Error reporting pet:", error);
       toast.error("Failed to report pet");
-      setReportToastId(null);
       throw error;
     }
   };
@@ -240,51 +234,40 @@ export default function ReportPetForm() {
     }
   };
 
-  // Handle approval confirmation
   useEffect(() => {
     if (isApprovalConfirmed && formData.useUSDC) {
-      // Dismiss the approval toast
-      if (approvalToastId) {
-        toast.dismiss(approvalToastId);
-        setApprovalToastId(null);
-      }
-      reportPet(); // Proceed to pet reporting after approval
+      toast.success("USDC approved!");
+      reportPet();
     }
-  }, [isApprovalConfirmed, formData.useUSDC]);
+  }, [isApprovalConfirmed]);
 
-  // Handle successful report
   useEffect(() => {
     if (isReportConfirmed) {
-      // Dismiss the report toast
-      if (reportToastId) {
-        toast.dismiss(reportToastId);
-        setReportToastId(null);
-      }
-
       toast.success("Pet reported successfully!");
-      // Reset form
-      setFormData({
-        name: "",
-        breed: "",
-        gender: "",
-        sizeCm: "",
-        ageMonths: "",
-        dateTimeLost: "",
-        description: "",
-        imageUrl: "",
-        lastSeenLocation: "",
-        contactName: "",
-        contactPhone: "",
-        contactEmail: "",
-        ethBounty: "0.0001",
-        usdcBounty: "0.5",
-        useUSDC: false,
-      });
-      setTimeout(() => {
-        router.push("/view_reports");
-      }, 1500);
+      resetForm();
+      router.push("/view_reports");
     }
-  }, [isReportConfirmed, router]);
+  }, [isReportConfirmed]);
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      breed: "",
+      gender: "",
+      sizeCm: "",
+      ageMonths: "",
+      dateTimeLost: "",
+      description: "",
+      imageUrl: "",
+      lastSeenLocation: "",
+      contactName: "",
+      contactPhone: "",
+      contactEmail: "",
+      ethBounty: "0.0001",
+      usdcBounty: "0.5",
+      useUSDC: false,
+    });
+  };
 
   const isLoading = isSubmitting || isApproving || isReporting;
 
@@ -500,7 +483,15 @@ export default function ReportPetForm() {
                 value={
                   formData.useUSDC ? formData.usdcBounty : formData.ethBounty
                 }
-                onChange={handleChange}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (formData.useUSDC) {
+                    // Validate USDC has max 6 decimal places
+                    if (value.includes(".") && value.split(".")[1].length > 6)
+                      return;
+                  }
+                  handleChange(e);
+                }}
                 className="w-full p-3 border border-gray-300 rounded-xl focus:ring-1 focus:ring-yellow-300 focus:outline-none transition"
                 min="0.0001"
                 step="0.0001"

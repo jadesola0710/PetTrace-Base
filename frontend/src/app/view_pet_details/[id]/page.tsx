@@ -1,8 +1,25 @@
 "use client";
-import { FaHeart, FaChevronLeft, FaChevronRight } from "react-icons/fa";
+import {
+  FaHeart,
+  FaChevronLeft,
+  FaChevronRight,
+  FaMapMarkerAlt,
+  FaPhone,
+  FaEnvelope,
+  FaUser,
+} from "react-icons/fa";
 import { useParams } from "next/navigation";
-import { useReadContract } from "wagmi";
+import {
+  useReadContract,
+  useWriteContract,
+  useAccount,
+  useWaitForTransactionReceipt,
+} from "wagmi";
 import PetTraceABI from "../../../../abi.json";
+import { useState, useEffect } from "react";
+import { toast } from "react-hot-toast";
+import Link from "next/link";
+import { FiArrowLeft } from "react-icons/fi";
 
 const CONTRACT_ADDRESS = "0xE57FdF69F2010faeD5F41209a65F1eD32Ec95E07";
 
@@ -32,34 +49,79 @@ interface Pet {
 export default function PetDetails() {
   const { id } = useParams<{ id: string }>();
   const petId = id ? BigInt(id) : BigInt(0);
+  const { writeContract } = useWriteContract();
+  const [isMarkingFound, setIsMarkingFound] = useState(false);
+  const [isConfirmingFound, setIsConfirmingFound] = useState(false);
+  const [isClaimingBounty, setIsClaimingBounty] = useState(false);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { address, isConnected } = useAccount();
+  const [activeImage, setActiveImage] = useState(0);
+
+  // Add transaction waiting
+  const {
+    data: receipt,
+    isError: isTxError,
+    isLoading: isTxLoading,
+  } = useWaitForTransactionReceipt({
+    hash: txHash as `0x${string}`,
+  });
+
+  useEffect(() => {
+    if (receipt && !isTxLoading) {
+      toast.success("Transaction confirmed on blockchain!");
+    }
+    if (isTxError) {
+      toast.error("Transaction failed on chain");
+    }
+  }, [receipt, isTxLoading, isTxError]);
 
   const {
     data: petData,
     isLoading,
     isError,
+    refetch: refetchPetData,
   } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: PetTraceABI.abi,
-    functionName: "getPetDetails", // Using the public mapping getter
+    functionName: "getPetDetails",
     args: [petId],
   });
 
   if (isLoading)
-    return <div className="text-center py-8">Loading pet details...</div>;
-  if (isError)
     return (
-      <div className="text-center py-8 text-red-500">
-        Error loading pet details
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-center">
+          <div className="h-8 w-64 bg-gray-200 rounded mx-auto mb-4"></div>
+          <div className="h-4 w-48 bg-gray-200 rounded mx-auto"></div>
+        </div>
       </div>
     );
 
-  // The petData will be an array of all the Pet struct fields in order
-  const petArray = petData as any[];
+  if (isError)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center p-6 bg-red-50 rounded-xl max-w-md">
+          <h2 className="text-xl font-semibold text-red-600 mb-2">
+            Error loading pet details
+          </h2>
+          <p className="text-gray-600 mb-4">
+            We couldn't load the pet information. Please try again.
+          </p>
+          <Link
+            href="/view_reports"
+            className="inline-flex items-center text-indigo-600 hover:text-indigo-800"
+          >
+            <FiArrowLeft className="mr-2" /> Back to all pets
+          </Link>
+        </div>
+      </div>
+    );
 
-  // Format the pet data
+  const petArray = petData as any[];
   const formattedPet: Pet = {
     id: Number(petId),
-    owner: petArray[1], // owner is the second element in the struct
+    owner: petArray[1],
     name: petArray[2],
     breed: petArray[3],
     gender: petArray[4],
@@ -80,7 +142,6 @@ export default function PetDetails() {
     finder: petArray[19] || "",
   };
 
-  // Create thumbnails array
   const thumbnails = [
     formattedPet.imageUrl,
     "/images/pet2.jpg",
@@ -88,7 +149,6 @@ export default function PetDetails() {
     "/images/pet4.jpg",
   ];
 
-  // Format bounty amounts
   const formatBounty = (amount: number, isUsdc: boolean = false) => {
     if (isUsdc) {
       return (amount / 1e6).toFixed(2) + " USDC";
@@ -96,142 +156,472 @@ export default function PetDetails() {
     return (amount / 1e18).toFixed(4) + " ETH";
   };
 
+  const handleMarkAsFound = () => {
+    console.log("Attempting markAsFound with:", {
+      petId,
+      caller: address,
+      owner: formattedPet.owner,
+      isFound: formattedPet.isFound,
+      finder: formattedPet.finder,
+    });
+
+    if (!isConnected) {
+      const errMsg = "Please connect your wallet first";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (formattedPet.owner.toLowerCase() === address?.toLowerCase()) {
+      const errMsg = "You can't mark your own pet as found";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (formattedPet.isFound) {
+      const errMsg = "This pet has already been found";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    setIsMarkingFound(true);
+    setError(null);
+    setTxHash(null);
+
+    writeContract(
+      {
+        address: CONTRACT_ADDRESS,
+        abi: PetTraceABI.abi,
+        functionName: "markAsFound",
+        args: [petId],
+      },
+      {
+        onSuccess: (hash) => {
+          console.log("Transaction hash:", hash);
+          setTxHash(hash);
+          toast.success("Transaction submitted! Waiting for confirmation...");
+        },
+        onError: (error) => {
+          console.error("Transaction error:", error);
+          const errMsg = error.message || "Transaction failed";
+          setError(errMsg);
+          toast.error(errMsg);
+        },
+        onSettled: () => {
+          setIsMarkingFound(false);
+          refetchPetData();
+        },
+      }
+    );
+  };
+
+  const handleConfirmFoundByOwner = () => {
+    console.log("Attempting confirmFoundByOwner with:", {
+      petId,
+      caller: address,
+      owner: formattedPet.owner,
+      finder: formattedPet.finder,
+      ownerConfirmed: formattedPet.ownerConfirmed,
+    });
+
+    if (!isConnected) {
+      const errMsg = "Please connect your wallet first";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (formattedPet.owner.toLowerCase() !== address?.toLowerCase()) {
+      const errMsg = "Only the pet owner can confirm";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (!formattedPet.finder) {
+      const errMsg = "No finder has been assigned yet";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    setIsConfirmingFound(true);
+    setError(null);
+    setTxHash(null);
+
+    writeContract(
+      {
+        address: CONTRACT_ADDRESS,
+        abi: PetTraceABI.abi,
+        functionName: "confirmFoundByOwner",
+        args: [petId],
+      },
+      {
+        onSuccess: (hash) => {
+          console.log("Confirmation tx hash:", hash);
+          setTxHash(hash);
+          toast.success("Confirmation submitted! Waiting...");
+        },
+        onError: (error) => {
+          console.error("Confirmation error:", error);
+          const errMsg = error.message || "Confirmation failed";
+          setError(errMsg);
+          toast.error(errMsg);
+        },
+        onSettled: () => {
+          setIsConfirmingFound(false);
+          refetchPetData();
+        },
+      }
+    );
+  };
+
+  const handleClaimBounty = () => {
+    console.log("Attempting to claim bounty:", {
+      petId,
+      caller: address,
+      finder: formattedPet.finder,
+      ethBounty: formattedPet.ethBounty,
+      usdcBounty: formattedPet.usdcBounty,
+    });
+
+    if (!isConnected) {
+      const errMsg = "Please connect your wallet first";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (formattedPet.finder.toLowerCase() !== address?.toLowerCase()) {
+      const errMsg = "Only the finder can claim the bounty";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (!formattedPet.isFound) {
+      const errMsg = "Pet must be confirmed as found by both parties";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    if (formattedPet.ethBounty <= 0 && formattedPet.usdcBounty <= 0) {
+      const errMsg = "No bounty available to claim";
+      setError(errMsg);
+      toast.error(errMsg);
+      return;
+    }
+
+    setIsClaimingBounty(true);
+    setError(null);
+    setTxHash(null);
+    toast.loading("Processing bounty claim...");
+
+    writeContract(
+      {
+        address: CONTRACT_ADDRESS,
+        abi: PetTraceABI.abi,
+        functionName: "claimBounty",
+        args: [petId],
+      },
+      {
+        onSuccess: (hash) => {
+          console.log("Bounty claim tx hash:", hash);
+          setTxHash(hash);
+          toast.success("Bounty claim submitted! Waiting for confirmation...");
+        },
+        onError: (error) => {
+          console.error("Bounty claim error:", error);
+          const errMsg = error.message || "Failed to claim bounty";
+          setError(errMsg);
+          toast.error(errMsg);
+        },
+        onSettled: () => {
+          setIsClaimingBounty(false);
+          refetchPetData();
+          toast.dismiss();
+        },
+      }
+    );
+  };
+
   return (
-    <div className="flex flex-col md:flex-row gap-8 p-4 md:p-8 max-w-7xl mx-auto">
-      {/* Left: Image + Gallery */}
-      <div className="md:w-1/2 flex flex-col items-center">
-        {/* MAIN IMAGE */}
-        <div className="relative w-full md:h-[460px] h-[300px] overflow-hidden rounded-2xl">
-          <img
-            src={formattedPet.imageUrl || "/images/pet.jpg"}
-            alt={formattedPet.name}
-            className="object-cover w-full h-full"
-          />
-
-          {/* Desktop Nav Buttons */}
-          <button className="hidden md:flex absolute top-1/2 left-2 -translate-y-1/2 bg-white p-2 rounded-full shadow">
-            <FaChevronLeft />
-          </button>
-          <button className="hidden md:flex absolute top-1/2 right-2 -translate-y-1/2 bg-white p-2 rounded-full shadow">
-            <FaChevronRight />
-          </button>
-
-          {/* Carousel dots */}
-          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
-            {thumbnails.map((_, i) => (
-              <span
-                key={i}
-                className="w-2 h-2 rounded-full bg-white opacity-70"
-              ></span>
-            ))}
-          </div>
-        </div>
-
-        {/* Thumbnail strip (desktop only) */}
-        <div className="hidden md:flex mt-4 gap-3">
-          {thumbnails.map((src, i) => (
-            <img
-              key={i}
-              src={src}
-              alt={`thumbnail-${i}`}
-              className={`w-20 h-20 rounded-xl object-cover border-2 ${
-                i === 0 ? "border-indigo-500" : "border-transparent"
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Bounty Information */}
-        <div className="mt-6 w-full bg-indigo-50 p-4 rounded-xl">
-          <h3 className="font-semibold text-indigo-700">Reward for Finding</h3>
-          <div className="flex justify-between mt-2">
-            {formattedPet.ethBounty > 0 && (
-              <span className="font-medium">
-                {formatBounty(formattedPet.ethBounty)}
-              </span>
-            )}
-            {formattedPet.usdcBounty > 0 && (
-              <span className="font-medium">
-                {formatBounty(formattedPet.usdcBounty, true)}
-              </span>
-            )}
-          </div>
-        </div>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="mb-6">
+        <Link
+          href="/view_reports"
+          className="inline-flex items-center text-indigo-600 hover:text-indigo-800"
+        >
+          <FiArrowLeft className="mr-2" /> Back to all pets
+        </Link>
       </div>
 
-      {/* Right: Pet Details */}
-      <div className="md:w-1/2 space-y-4">
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold">
-              {formattedPet.name}
-            </h1>
-            <p className="text-gray-500 text-sm">
-              {formattedPet.breed} • Lost on {formattedPet.dateTimeLost}
-            </p>
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Left: Image Gallery */}
+        <div className="lg:w-1/2">
+          <div className="relative w-full h-96 lg:h-[500px] rounded-2xl overflow-hidden shadow-lg">
+            <img
+              src={thumbnails[activeImage] || "/images/pet-placeholder.jpg"}
+              alt={formattedPet.name}
+              className="w-full h-full object-cover transition-opacity duration-300"
+            />
+
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+              {thumbnails.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setActiveImage(index)}
+                  className={`w-3 h-3 rounded-full transition-all ${
+                    activeImage === index
+                      ? "bg-indigo-600 w-6"
+                      : "bg-white bg-opacity-50"
+                  }`}
+                  aria-label={`View image ${index + 1}`}
+                />
+              ))}
+            </div>
           </div>
-          <FaHeart className="text-purple-400 text-xl mt-1" />
+
+          <div className="mt-6 grid grid-cols-4 gap-3">
+            {thumbnails.map((src, index) => (
+              <button
+                key={index}
+                onClick={() => setActiveImage(index)}
+                className={`h-24 rounded-lg overflow-hidden border-2 transition-all ${
+                  activeImage === index
+                    ? "border-indigo-500"
+                    : "border-transparent"
+                }`}
+              >
+                <img
+                  src={src}
+                  alt={`Thumbnail ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+
+          {/* Bounty Card */}
+          <div className="mt-6 bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100 shadow-sm">
+            <h3 className="text-lg font-semibold text-indigo-700 mb-3 flex items-center">
+              <span className="bg-indigo-100 p-2 rounded-full mr-3">
+                <FaHeart className="text-indigo-600" />
+              </span>
+              Reward for Finding
+            </h3>
+            <div className="flex justify-between items-center">
+              {formattedPet.ethBounty > 0 && (
+                <span className="text-xl font-bold bg-white px-4 py-2 rounded-lg shadow-sm">
+                  {formatBounty(formattedPet.ethBounty)}
+                </span>
+              )}
+              {formattedPet.usdcBounty > 0 && (
+                <span className="text-xl font-bold bg-white px-4 py-2 rounded-lg shadow-sm">
+                  {formatBounty(formattedPet.usdcBounty, true)}
+                </span>
+              )}
+            </div>
+            {formattedPet.isFound && (
+              <div className="mt-3 text-sm text-green-600 font-medium">
+                This pet has been found!
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Gender, Size, Age */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-indigo-50 text-center rounded-xl py-2 text-sm font-medium text-indigo-600">
-            Gender <br />
-            <span className="font-semibold">{formattedPet.gender}</span>
-          </div>
-          <div className="bg-indigo-50 text-center rounded-xl py-2 text-sm font-medium text-indigo-600">
-            Size <br />
-            <span className="font-semibold">{formattedPet.sizeCm} cm</span>
-          </div>
-          <div className="bg-indigo-50 text-center rounded-xl py-2 text-sm font-medium text-indigo-600">
-            Age <br />
-            <span className="font-semibold">
-              {formattedPet.ageMonths} months
-            </span>
-          </div>
-        </div>
+        {/* Right: Pet Details */}
+        <div className="lg:w-1/2">
+          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+            <div className="flex justify-between items-start mb-6">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {formattedPet.name}
+                </h1>
+                <p className="text-gray-500">
+                  {formattedPet.breed} • Lost on{" "}
+                  {new Date(formattedPet.dateTimeLost).toLocaleDateString()}
+                </p>
+              </div>
+              <button className="text-pink-400 hover:text-pink-600 transition-colors">
+                <FaHeart className="text-2xl" />
+              </button>
+            </div>
 
-        {/* Description */}
-        <div>
-          <h3 className="font-semibold mb-1">Details:</h3>
-          <p className="text-sm text-gray-700">{formattedPet.description}</p>
-        </div>
+            {/* Pet Stats */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-indigo-50 p-3 rounded-lg text-center">
+                <div className="text-sm text-indigo-600 mb-1">Gender</div>
+                <div className="font-semibold">{formattedPet.gender}</div>
+              </div>
+              <div className="bg-indigo-50 p-3 rounded-lg text-center">
+                <div className="text-sm text-indigo-600 mb-1">Size</div>
+                <div className="font-semibold">{formattedPet.sizeCm} cm</div>
+              </div>
+              <div className="bg-indigo-50 p-3 rounded-lg text-center">
+                <div className="text-sm text-indigo-600 mb-1">Age</div>
+                <div className="font-semibold">
+                  {formattedPet.ageMonths} months
+                </div>
+              </div>
+            </div>
 
-        {/* Contact Info */}
-        <div>
-          <h3 className="font-semibold mb-1">Owner Contacts:</h3>
-          <p className="text-sm leading-relaxed">
-            <strong>Name:</strong> {formattedPet.contactName} <br />
-            <strong>Phone:</strong> {formattedPet.contactPhone} <br />
-            <strong>Email:</strong> {formattedPet.contactEmail}
-          </p>
-        </div>
+            {/* Description */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                About {formattedPet.name}
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                {formattedPet.description}
+              </p>
+            </div>
 
-        {/* Location + Map */}
-        <div className="rounded-2xl shadow overflow-hidden">
-          <iframe
-            src={`https://www.google.com/maps?q=${encodeURIComponent(
-              formattedPet.lastSeenLocation
-            )}&output=embed`}
-            className="w-full h-40 border-0"
-            loading="lazy"
-          ></iframe>
-          <div className="p-3 text-sm">
-            <p>
-              <strong>Last seen at:</strong> <br />
-              {formattedPet.lastSeenLocation}
-            </p>
+            {/* Location */}
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                <FaMapMarkerAlt className="text-red-500 mr-2" />
+                Last Seen Location
+              </h3>
+              <p className="text-gray-700">{formattedPet.lastSeenLocation}</p>
+              <div className="mt-3 rounded-xl overflow-hidden h-48 border border-gray-200">
+                <iframe
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(
+                    formattedPet.lastSeenLocation
+                  )}&output=embed`}
+                  className="w-full h-full border-0"
+                  loading="lazy"
+                ></iframe>
+              </div>
+            </div>
+
+            {/* Contact Info */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                Owner Information
+              </h3>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <FaUser className="text-gray-500 mr-3" />
+                  <span className="text-gray-700">
+                    {formattedPet.contactName}
+                  </span>
+                </div>
+                <div className="flex items-center">
+                  <FaPhone className="text-gray-500 mr-3" />
+                  <a
+                    href={`tel:${formattedPet.contactPhone}`}
+                    className="text-gray-700 hover:text-indigo-600"
+                  >
+                    {formattedPet.contactPhone}
+                  </a>
+                </div>
+                {formattedPet.contactEmail && (
+                  <div className="flex items-center">
+                    <FaEnvelope className="text-gray-500 mr-3" />
+                    <a
+                      href={`mailto:${formattedPet.contactEmail}`}
+                      className="text-gray-700 hover:text-indigo-600"
+                    >
+                      {formattedPet.contactEmail}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {!formattedPet.isFound && (
+                <>
+                  {formattedPet.owner.toLowerCase() !==
+                    address?.toLowerCase() && (
+                    <button
+                      onClick={handleMarkAsFound}
+                      disabled={isMarkingFound}
+                      className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-xl font-medium transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      {isMarkingFound ? (
+                        <span className="flex items-center">
+                          <svg
+                            className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            ></circle>
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                            ></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : (
+                        "I Found This Pet"
+                      )}
+                    </button>
+                  )}
+
+                  {formattedPet.owner.toLowerCase() ===
+                    address?.toLowerCase() &&
+                    formattedPet.finder &&
+                    !formattedPet.ownerConfirmed && (
+                      <button
+                        onClick={handleConfirmFoundByOwner}
+                        disabled={isConfirmingFound}
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-xl font-medium transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                      >
+                        {isConfirmingFound ? "Processing..." : "Confirm Found"}
+                      </button>
+                    )}
+                </>
+              )}
+
+              {formattedPet.isFound &&
+                formattedPet.finder.toLowerCase() === address?.toLowerCase() &&
+                (formattedPet.ethBounty > 0 || formattedPet.usdcBounty > 0) && (
+                  <button
+                    onClick={handleClaimBounty}
+                    disabled={isClaimingBounty}
+                    className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-3 px-6 rounded-xl font-medium transition-colors shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isClaimingBounty ? "Claiming..." : "Claim Reward"}
+                  </button>
+                )}
+
+              <Link
+                href="/view_reports"
+                className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-3 px-6 rounded-xl font-medium transition-colors shadow-sm text-center"
+              >
+                View All Pets
+              </Link>
+            </div>
+
+            {/* Status Messages */}
+            {txHash && (
+              <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-lg border border-green-100">
+                <p className="font-medium">Transaction submitted!</p>
+                <p className="text-sm opacity-80 break-all">{txHash}</p>
+              </div>
+            )}
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-100">
+                <p className="font-medium">Error</p>
+                <p>{error}</p>
+              </div>
+            )}
           </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex flex-col md:flex-row gap-4 mt-4">
-          <button className="bg-indigo-600 text-white px-6 py-2 rounded-xl shadow hover:bg-indigo-700">
-            I Found This Pet
-          </button>
-          <button className="border border-gray-300 px-6 py-2 rounded-xl hover:bg-gray-50">
-            View All Lost Pets
-          </button>
         </div>
       </div>
     </div>
