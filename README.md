@@ -110,6 +110,9 @@ Deployed to **Base** :
 | -------- | -------------------------------------------- |
 | PetTrace | `0xE57FdF69F2010faeD5F41209a65F1eD32Ec95E07` |
 
+Transaction:
+(https://base-sepolia.blockscout.com/tx/0xe185c5318cc8d9fc51b98f8dc1cf8efbd992e6b77330b73bbed63e5428cdee1e)[https://base-sepolia.blockscout.com/tx/0xe185c5318cc8d9fc51b98f8dc1cf8efbd992e6b77330b73bbed63e5428cdee1e]
+
 ---
 
 ---
