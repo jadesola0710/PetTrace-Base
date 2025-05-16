@@ -88,7 +88,7 @@ export default function Home() {
       <HeroBanner />
 
       {/* Lost Pets Section */}
-      <section className=" mx-auto mt-12">
+      <section className="max-w-7xl mx-auto mt-12">
         <h2 className="text-2xl font-bold text-gray-800 mb-6">
           Recently Lost Pets
         </h2>
