@@ -12,8 +12,8 @@ import { toast } from "react-hot-toast";
 import PetTraceABI from "../../abi.json";
 import { erc20Abi } from "viem";
 
-const CONTRACT_ADDRESS = "0xE57FdF69F2010faeD5F41209a65F1eD32Ec95E07"; // Replace with your deployed contract address
-const USDC_ADDRESS = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // Base Sepolia USDC
+const CONTRACT_ADDRESS = "0xe27f57AdE31b128AE0cea20498D067E1De6AB210";
+const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 
 interface PetFormData {
   name: string;

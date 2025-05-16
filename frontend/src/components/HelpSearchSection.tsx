@@ -70,7 +70,7 @@ export default function HelpSearchSection() {
 
           <div className="flex flex-col sm:flex-row gap-3">
             <Link
-              href="/report"
+              href="/report_page"
               className="bg-yellow-600 hover:bg-yellow-700 text-white px-5 py-3 rounded-xl font-medium text-center transition-colors shadow-sm"
             >
               Report Lost Pet

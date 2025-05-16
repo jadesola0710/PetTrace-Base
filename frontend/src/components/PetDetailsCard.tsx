@@ -87,9 +87,9 @@ export default function PetDetails() {
         <div>
           <h3 className="font-semibold mb-1">Деталі:</h3>
           <p className="text-sm text-gray-700">
-            Наша Капучина невеликого розміру, коричневого кольору зі світлим
-            пузиком. Мала червоний нашийник. Загубилася в центрі міста Бровари,
-            недалеко від головної площі міста.
+            Our Capuchin is small in size, brown in color with a light belly.
+            She was wearing a red collar. She went missing in the city center of
+            Brovary, near the main square.
           </p>
         </div>
 

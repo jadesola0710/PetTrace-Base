@@ -21,7 +21,7 @@ import { toast } from "react-hot-toast";
 import Link from "next/link";
 import { FiArrowLeft } from "react-icons/fi";
 
-const CONTRACT_ADDRESS = "0xE57FdF69F2010faeD5F41209a65F1eD32Ec95E07";
+const CONTRACT_ADDRESS = "0xe27f57AdE31b128AE0cea20498D067E1De6AB210";
 
 interface Pet {
   id: number;

@@ -37,7 +37,7 @@ PetTrace/
 
 ```sh
 git clone https://github.com/jadesola0710/PetTrace-Base.git
-cd pettrace
+cd PetTrace-Base
 ```
 
 ### 2️⃣ Install Dependencies
@@ -102,18 +102,39 @@ pnpm run dev
 
 ---
 
-## **Smart Contract Deployment**
+## **Deployment & Transactions**
 
-Deployed to **Base** :
+### **Smart Contract Addresses (Base Mainnet)**
 
-| Contract | Address                                      |
-| -------- | -------------------------------------------- |
-| PetTrace | `0xE57FdF69F2010faeD5F41209a65F1eD32Ec95E07` |
+| Contract | Address                                      | Status   |
+| -------- | -------------------------------------------- | -------- |
+| PetTrace | `0xe27f57AdE31b128AE0cea20498D067E1De6AB210` | **Live** |
 
-Transaction:
-(https://base-sepolia.blockscout.com/tx/0xe185c5318cc8d9fc51b98f8dc1cf8efbd992e6b77330b73bbed63e5428cdee1e)[https://base-sepolia.blockscout.com/tx/0xe185c5318cc8d9fc51b98f8dc1cf8efbd992e6b77330b73bbed63e5428cdee1e]
+### **Recent Transactions**
 
----
+1. **Latest TX 1**  
+   🔗 [View on BaseScan](https://basescan.org/tx/0xc2eff61f7a1a0d91e4000bb310e5b2ff853d44537437cdb3a51c61be81d0492e)
+
+   - Contract: `0xe27f57AdE31b128AE0cea20498D067E1De6AB210`
+
+2. **Latest TX 2**  
+   🔗 [View on BaseScan](https://basescan.org/tx/0x23c580877fab109dd47b2410ec6bc9d89e9e42261a49c73b2a8fefe8b5ebbcde)
+
+   - Contract: `0xe27f57AdE31b128AE0cea20498D067E1De6AB210`
+
+3. **Latest TX 3**  
+   🔗 [View on BaseScan](https://basescan.org/tx/0x24e960e2360cd83c14d7997b58fbf7cf4b8653fb0f6b489aba23f7f9fa5b9d6f)
+
+   - Contract: `0xe27f57AdE31b128AE0cea20498D067E1De6AB210`
+
+4. **Latest TX 4**  
+   🔗 [View on BaseScan](https://basescan.org/tx/0x0e514d532fc3ad2f1ff786c5d4a7ed95de99769a4f250e2bf0a9f9a417870c45)
+
+   - Contract: `0xe27f57AdE31b128AE0cea20498D067E1De6AB210`
+
+5. **Latest TX 5**  
+   🔗 [View on BaseScan](https://basescan.org/tx/0x4995ff01df9674a585cf6c789854b5226c66c419e97d81c7888032fb8e1a5e3e)
+   - Contract: `0xe27f57AdE31b128AE0cea20498D067E1De6AB210`
 
 ---
 

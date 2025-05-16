@@ -41,7 +41,7 @@ contract PetTrace {
 
     // Base Sepolia Testnet USDC address
     address public constant USDC_ADDRESS =
-        0x036CbD53842c5426634e7929541eC2318f3dCF7e;
+        0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     uint256 public nextPetId;
     mapping(uint256 => Pet) public pets;
     mapping(uint256 => uint256) public escrowedUSDC;
